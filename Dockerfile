@@ -1,9 +1,5 @@
 FROM node:20-bookworm-slim
 
-# Install Playwright system dependencies
-# This installs Chromium and all required libraries (libnss3, libatk, etc.)
-RUN npx -y playwright@1.48.0 install --with-deps chromium
-
 # Set working directory
 WORKDIR /app
 
@@ -13,11 +9,20 @@ COPY package*.json ./
 # Install Node.js dependencies
 RUN npm ci --only=production
 
+# Install Playwright browsers and system dependencies
+# This must run AFTER npm install to use the correct Playwright version
+RUN npx playwright install --with-deps chromium
+
 # Copy application code
 COPY . .
 
 # Create non-root user for security
-RUN useradd -m -u 1001 scraper && chown -R scraper:scraper /app
+RUN useradd -m -u 1001 scraper && \
+    chown -R scraper:scraper /app && \
+    mkdir -p /home/scraper/.cache && \
+    cp -r /root/.cache/ms-playwright /home/scraper/.cache/ && \
+    chown -R scraper:scraper /home/scraper/.cache
+
 USER scraper
 
 # Expose port
