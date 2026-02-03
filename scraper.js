@@ -86,37 +86,42 @@ export async function extractAdvertiserId(companyName) {
     });
     console.log(`[Scraper] First result: ${firstItemText}`);
 
-    // Click first result using JavaScript
-    console.log('[Scraper] Clicking first result...');
-    await page.evaluate(() => {
-      const firstItem = document.querySelector('material-select-item[role="option"]');
-      if (firstItem) {
-        firstItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        firstItem.click();
-      }
-    });
+    // Click first result using Playwright's click (not JavaScript)
+    console.log('[Scraper] Clicking first result with Playwright...');
+    const firstItem = await page.$('material-select-item[role="option"]');
 
-    console.log('[Scraper] Click executed, waiting for URL change...');
-
-    // Wait for URL to change and contain advertiser ID
-    let advertiserId = null;
-    for (let i = 0; i < 20; i++) {
-      await page.waitForTimeout(500);
-      const url = page.url();
-      const match = url.match(/advertiser=([A-Z0-9_-]+)/);
-
-      if (match) {
-        advertiserId = match[1];
-        console.log(`[Scraper] ✅ Found advertiser ID: ${advertiserId}`);
-        break;
-      }
+    if (!firstItem) {
+      throw new Error('First dropdown item not found');
     }
 
-    if (!advertiserId) {
-      const currentUrl = page.url();
-      console.error('[Scraper] Failed to extract advertiser ID. Current URL:', currentUrl);
+    // Wait for navigation after click
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {
+        console.log('[Scraper] Navigation timeout, checking URL anyway...');
+      }),
+      firstItem.click()
+    ]);
+
+    console.log('[Scraper] Click executed, checking URL...');
+    await page.waitForTimeout(2000); // Extra wait for URL to stabilize
+
+    // Extract advertiser ID from URL
+    const currentUrl = page.url();
+    console.log('[Scraper] Current URL:', currentUrl);
+
+    const match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+
+    if (!match) {
+      // If no advertiser in URL, try alternative: check if we're on advertiser page
+      const pageContent = await page.content();
+      if (pageContent.includes('advertiser')) {
+        console.log('[Scraper] On advertiser page but no ID in URL, checking page...');
+      }
       throw new Error('Failed to extract advertiser ID from URL');
     }
+
+    const advertiserId = match[1];
+    console.log(`[Scraper] ✅ Found advertiser ID: ${advertiserId}`);
 
     return {
       success: true,
