@@ -111,14 +111,14 @@ export async function extractAdvertiserId(companyName) {
     let currentUrl = page.url();
     console.log('[Scraper] Current URL:', currentUrl);
 
-    let match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+    let match = currentUrl.match(/\/advertiser\/([A-Z0-9_-]+)/);
 
     // If no advertiser ID in URL, check if we're on search results page
     if (!match) {
       console.log('[Scraper] No advertiser ID in URL. Checking for additional steps...');
 
       // Check if there's a "View Advertiser" or similar link to click
-      const advertiserLink = await page.$('a[href*="advertiser="]');
+      const advertiserLink = await page.$('a[href*="/advertiser/"]');
 
       if (advertiserLink) {
         console.log('[Scraper] Found advertiser link, clicking...');
@@ -130,7 +130,7 @@ export async function extractAdvertiserId(companyName) {
         await page.waitForTimeout(2000);
         currentUrl = page.url();
         console.log('[Scraper] New URL after second click:', currentUrl);
-        match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+        match = currentUrl.match(/\/advertiser\/([A-Z0-9_-]+)/);
       }
     }
 
