@@ -86,23 +86,18 @@ export async function extractAdvertiserId(companyName) {
     });
     console.log(`[Scraper] First result: ${firstItemText}`);
 
-    // Click first result using Playwright's click (not JavaScript)
-    console.log('[Scraper] Clicking first result with Playwright...');
-    const firstItem = await page.$('material-select-item[role="option"]');
+    // Use keyboard navigation to select first result (more reliable than clicking)
+    console.log('[Scraper] Pressing ArrowDown and Enter to select first result...');
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(500);
 
-    if (!firstItem) {
-      throw new Error('First dropdown item not found');
-    }
-
-    // Wait for navigation after click
+    // Wait for navigation after pressing Enter
     await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {
-        console.log('[Scraper] Navigation timeout, checking URL anyway...');
-      }),
-      firstItem.click()
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }),
+      page.keyboard.press('Enter')
     ]);
 
-    console.log('[Scraper] Click executed, checking URL...');
+    console.log('[Scraper] Navigation completed, checking URL...');
     await page.waitForTimeout(2000); // Extra wait for URL to stabilize
 
     // Extract advertiser ID from URL
