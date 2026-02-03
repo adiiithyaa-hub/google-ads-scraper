@@ -86,15 +86,22 @@ export async function extractAdvertiserId(companyName) {
     });
     console.log(`[Scraper] First result: ${firstItemText}`);
 
-    // Use keyboard navigation to select first result (more reliable than clicking)
-    console.log('[Scraper] Pressing ArrowDown and Enter to select first result...');
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(500);
+    // Get first item and ensure it's visible
+    console.log('[Scraper] Scrolling first item into view and clicking...');
+    const firstItem = await page.$('material-select-item[role="option"]');
 
-    // Wait for navigation after pressing Enter
+    if (!firstItem) {
+      throw new Error('First dropdown item not found');
+    }
+
+    // Scroll into view and wait for stability
+    await firstItem.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1000);
+
+    // Click and wait for navigation
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }),
-      page.keyboard.press('Enter')
+      firstItem.click({ force: true })
     ]);
 
     console.log('[Scraper] Navigation completed, checking URL...');
