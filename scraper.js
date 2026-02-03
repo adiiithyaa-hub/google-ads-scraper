@@ -105,20 +105,36 @@ export async function extractAdvertiserId(companyName) {
     ]);
 
     console.log('[Scraper] Navigation completed, checking URL...');
-    await page.waitForTimeout(2000); // Extra wait for URL to stabilize
+    await page.waitForTimeout(3000); // Wait for page to fully load
 
     // Extract advertiser ID from URL
-    const currentUrl = page.url();
+    let currentUrl = page.url();
     console.log('[Scraper] Current URL:', currentUrl);
 
-    const match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+    let match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+
+    // If no advertiser ID in URL, check if we're on search results page
+    if (!match) {
+      console.log('[Scraper] No advertiser ID in URL. Checking for additional steps...');
+
+      // Check if there's a "View Advertiser" or similar link to click
+      const advertiserLink = await page.$('a[href*="advertiser="]');
+
+      if (advertiserLink) {
+        console.log('[Scraper] Found advertiser link, clicking...');
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+          advertiserLink.click()
+        ]);
+
+        await page.waitForTimeout(2000);
+        currentUrl = page.url();
+        console.log('[Scraper] New URL after second click:', currentUrl);
+        match = currentUrl.match(/advertiser=([A-Z0-9_-]+)/);
+      }
+    }
 
     if (!match) {
-      // If no advertiser in URL, try alternative: check if we're on advertiser page
-      const pageContent = await page.content();
-      if (pageContent.includes('advertiser')) {
-        console.log('[Scraper] On advertiser page but no ID in URL, checking page...');
-      }
       throw new Error('Failed to extract advertiser ID from URL');
     }
 
