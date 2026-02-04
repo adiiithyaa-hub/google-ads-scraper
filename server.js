@@ -11,7 +11,7 @@ app.get('/', (req, res) => {
     status: 'running',
     endpoints: {
       health: 'GET /health',
-      scrape: 'POST /scrape (body: {company_name})',
+      scrape: 'POST /scrape (body: {company_name, match_index?})',
       search: 'POST /search (body: {company_name, region})'
     }
   });
@@ -28,7 +28,7 @@ app.get('/health', (req, res) => {
 
 // Main scraping endpoint
 app.post('/scrape', async (req, res) => {
-  const { company_name } = req.body;
+  const { company_name, match_index } = req.body;
 
   if (!company_name) {
     return res.status(400).json({
@@ -37,11 +37,11 @@ app.post('/scrape', async (req, res) => {
     });
   }
 
-  console.log(`[Server] Received scrape request for: ${company_name}`);
+  console.log(`[Server] Received scrape request for: ${company_name}${match_index !== undefined ? ` (match index: ${match_index})` : ''}`);
   const startTime = Date.now();
 
   try {
-    const result = await extractAdvertiserId(company_name);
+    const result = await extractAdvertiserId(company_name, match_index);
     const duration = Date.now() - startTime;
 
     console.log(`[Server] Scrape completed in ${duration}ms. Success: ${result.success}`);

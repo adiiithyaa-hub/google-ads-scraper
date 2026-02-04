@@ -3,9 +3,10 @@ import playwright from 'playwright';
 /**
  * Extracts Google Ads advertiser ID for a company
  * @param {string} companyName - Company name to search for
+ * @param {number} matchIndex - Optional index of dropdown match to click (default: 0)
  * @returns {Promise<{success: boolean, advertiserId?: string, error?: string}>}
  */
-export async function extractAdvertiserId(companyName) {
+export async function extractAdvertiserId(companyName, matchIndex = 0) {
   let browser = null;
 
   try {
@@ -79,23 +80,29 @@ export async function extractAdvertiserId(companyName) {
       throw new Error(`No advertiser found for "${companyName}". The company may not have Google Ads, or try a different name.`);
     }
 
-    // Get text of first item for logging
-    const firstItemText = await page.evaluate(() => {
-      const firstItem = document.querySelector('material-select-item[role="option"]');
-      return firstItem ? firstItem.textContent.trim() : '';
-    });
-    console.log(`[Scraper] First result: ${firstItemText}`);
+    // Validate matchIndex
+    if (matchIndex < 0 || matchIndex >= dropdownItems.length) {
+      throw new Error(`Invalid match index ${matchIndex}. Found ${dropdownItems.length} matches.`);
+    }
+
+    // Get text of selected item for logging
+    const selectedItemText = await page.evaluate((index) => {
+      const items = document.querySelectorAll('material-select-item[role="option"]');
+      return items[index] ? items[index].textContent.trim() : '';
+    }, matchIndex);
+    console.log(`[Scraper] Selected match ${matchIndex}: ${selectedItemText}`);
 
     // Click using JavaScript (more reliable than Playwright click - from v88)
-    console.log('[Scraper] Clicking first result with JavaScript...');
+    console.log(`[Scraper] Clicking match ${matchIndex} with JavaScript...`);
 
-    await page.evaluate(() => {
-      const firstItem = document.querySelector('material-select-item[role="option"]');
-      if (firstItem) {
-        firstItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        firstItem.click();
+    await page.evaluate((index) => {
+      const items = document.querySelectorAll('material-select-item[role="option"]');
+      const selectedItem = items[index];
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        selectedItem.click();
       }
-    });
+    }, matchIndex);
 
     console.log('[Scraper] Click executed, waiting for URL change...');
 
@@ -155,7 +162,7 @@ export async function extractAdvertiserId(companyName) {
     return {
       success: true,
       advertiserId,
-      advertiserName: firstItemText
+      advertiserName: selectedItemText
     };
 
   } catch (error) {
