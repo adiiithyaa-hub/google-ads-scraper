@@ -86,32 +86,41 @@ export async function extractAdvertiserId(companyName) {
     });
     console.log(`[Scraper] First result: ${firstItemText}`);
 
-    // Get first item and ensure it's visible
-    console.log('[Scraper] Scrolling first item into view and clicking...');
-    const firstItem = await page.$('material-select-item[role="option"]');
+    // Click using JavaScript (more reliable than Playwright click - from v88)
+    console.log('[Scraper] Clicking first result with JavaScript...');
 
-    if (!firstItem) {
-      throw new Error('First dropdown item not found');
+    await page.evaluate(() => {
+      const firstItem = document.querySelector('material-select-item[role="option"]');
+      if (firstItem) {
+        firstItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstItem.click();
+      }
+    });
+
+    console.log('[Scraper] Click executed, waiting for URL change...');
+
+    // Poll for URL change instead of waitForNavigation (v88 approach)
+    let advertiserId = null;
+    const initialUrl = 'https://adstransparency.google.com/?region=US';
+
+    for (let i = 0; i < 30; i++) { // 30 attempts = 15 seconds max
+      await page.waitForTimeout(500);
+      const currentUrl = page.url();
+
+      if (currentUrl !== initialUrl) {
+        console.log(`[Scraper] URL changed after ${i * 0.5}s: ${currentUrl}`);
+        const match = currentUrl.match(/\/advertiser\/([A-Z0-9_-]+)/);
+        if (match) {
+          advertiserId = match[1];
+          break;
+        }
+      }
     }
 
-    // Scroll into view and wait for stability
-    await firstItem.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(1000);
-
-    // Click and wait for navigation
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }),
-      firstItem.click({ force: true })
-    ]);
-
-    console.log('[Scraper] Navigation completed, checking URL...');
-    await page.waitForTimeout(3000); // Wait for page to fully load
-
-    // Extract advertiser ID from URL
     let currentUrl = page.url();
-    console.log('[Scraper] Current URL:', currentUrl);
+    console.log('[Scraper] Final URL:', currentUrl);
 
-    let match = currentUrl.match(/\/advertiser\/([A-Z0-9_-]+)/);
+    let match = advertiserId ? { 1: advertiserId } : currentUrl.match(/\/advertiser\/([A-Z0-9_-]+)/);
 
     // If no advertiser ID in URL, check if we're on search results page
     if (!match) {

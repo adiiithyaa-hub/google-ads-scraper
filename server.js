@@ -4,6 +4,18 @@ import { extractAdvertiserId } from './scraper.js';
 const app = express();
 app.use(express.json());
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Google Ads Scraper',
+    status: 'running',
+    endpoints: {
+      health: 'GET /health',
+      scrape: 'POST /scrape (body: {company_name})'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
