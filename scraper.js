@@ -171,3 +171,141 @@ export async function extractAdvertiserId(companyName) {
     }
   }
 }
+
+/**
+ * Search for advertisers and return ALL matches (no clicking)
+ * @param {string} companyName - Company name to search for
+ * @param {string} region - Region code (default: US)
+ * @returns {Promise<{success: boolean, matches?: Array, error?: string}>}
+ */
+export async function searchAdvertisers(companyName, region = 'US') {
+  let browser = null;
+
+  try {
+    console.log(`[Search] Searching for "${companyName}" in region: ${region}`);
+
+    browser = await playwright.chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    console.log('[Search] Navigating to Google Ads Transparency Center...');
+    await page.goto(`https://adstransparency.google.com/?region=${region}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000
+    });
+
+    await page.waitForTimeout(3000);
+
+    // Find search input
+    console.log('[Search] Looking for search input...');
+    const searchInput = await page.$('input[type="text"]');
+
+    if (!searchInput) {
+      throw new Error('Search box not found');
+    }
+
+    // Type company name
+    console.log(`[Search] Typing "${companyName}"...`);
+    await searchInput.click();
+    await page.waitForTimeout(500);
+    await searchInput.type(companyName, { delay: 100 });
+
+    // Wait for dropdown
+    console.log('[Search] Waiting for dropdown (8 seconds)...');
+    await page.waitForTimeout(8000);
+
+    // Extract ALL dropdown items
+    console.log('[Search] Extracting all matches...');
+    let dropdownItems = await page.$$('material-select-item[role="option"]');
+
+    if (dropdownItems.length === 0) {
+      console.log('[Search] No items yet, waiting 5 more seconds...');
+      await page.waitForTimeout(5000);
+      dropdownItems = await page.$$('material-select-item[role="option"]');
+    }
+
+    if (dropdownItems.length === 0) {
+      throw new Error(`No advertisers found for "${companyName}"`);
+    }
+
+    console.log(`[Search] Found ${dropdownItems.length} matches, extracting data...`);
+
+    const matches = [];
+
+    for (let i = 0; i < dropdownItems.length; i++) {
+      const item = dropdownItems[i];
+
+      try {
+        const fullText = await item.textContent();
+        const lines = fullText.split('\n').map(l => l.trim()).filter(l => l && !['account_circle', 'verified_user', 'groups', 'public'].includes(l));
+
+        let name = lines[0] || '';
+        let verified = fullText.includes('Verified') || fullText.includes('verified_user');
+        let isGroup = fullText.includes('Multiple advertiser accounts') || fullText.includes('groups');
+        let basedIn = null;
+        let numAds = null;
+
+        // Parse lines
+        if (lines.length >= 2) {
+          const secondLine = lines[1];
+          if (secondLine.includes('Verified')) {
+            verified = true;
+            basedIn = lines[2] || null;
+            numAds = lines[3] || null;
+          } else if (secondLine.includes('Multiple advertiser accounts')) {
+            isGroup = true;
+            basedIn = lines[2] || null;
+            numAds = lines[3] || null;
+          } else {
+            basedIn = secondLine;
+            numAds = lines[2] || null;
+          }
+        }
+
+        matches.push({
+          index: i,
+          name,
+          verified,
+          is_group: isGroup,
+          based_in: basedIn,
+          num_ads: numAds
+        });
+
+        console.log(`[Search] Match ${i}: ${name} (${isGroup ? 'Group' : 'Advertiser'}${verified ? ', Verified' : ''})`);
+
+      } catch (err) {
+        console.error(`[Search] Error parsing item ${i}:`, err.message);
+      }
+    }
+
+    console.log(`[Search] ✅ Successfully extracted ${matches.length} matches`);
+
+    return {
+      success: true,
+      matches,
+      total: matches.length
+    };
+
+  } catch (error) {
+    console.error('[Search] Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log('[Search] Browser closed');
+    }
+  }
+}
