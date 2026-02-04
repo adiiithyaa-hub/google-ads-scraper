@@ -147,7 +147,9 @@ export async function extractAdvertiserId(companyName) {
       throw new Error('Failed to extract advertiser ID from URL');
     }
 
-    const advertiserId = match[1];
+    if (!advertiserId) {
+      advertiserId = match[1];
+    }
     console.log(`[Scraper] ✅ Found advertiser ID: ${advertiserId}`);
 
     return {
